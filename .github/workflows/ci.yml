@@ -1,6 +1,3 @@
-# CI: Build, unit tests, SonarQube, push to ECR
-# CD: Argo CD Image Updater watches ECR and updates deployment (no cross-repo push)
-
 name: CI
 
 on:
@@ -10,48 +7,49 @@ on:
     branches: [main, master, develop]
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'petclinic' }}
+  JAVA_VERSION: '17'
+  ECR_REPOSITORY: petclinic
+  AWS_REGION: ap-south-1
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    container:
+      image: maven:3.9-eclipse-temurin-17
+      options: --user 1001:1234
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Build and test
+        run: mvn -B clean verify
+        env:
+          MAVEN_OPTS: -Xmx512m
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Build
-        run: ./mvnw -B clean package -DskipTests
-
-      - name: Unit tests
-        run: ./mvnw -B test
+          name: target
+          path: target/
 
   sonar:
     needs: build-test
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    continue-on-error: true
+    container:
+      image: maven:3.9-eclipse-temurin-17
+      options: --user 1001:1234
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
+          name: target
+          path: target/
 
-      - name: Build with coverage
-        run: ./mvnw -B verify
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
+      - name: SonarQube analysis
+        run: mvn -B -P sonar sonar:sonar -DskipTests
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -59,17 +57,20 @@ jobs:
   build-push-ecr:
     needs: [build-test, sonar]
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
     permissions:
       id-token: write
       contents: read
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-      image_uri: ${{ steps.meta.outputs.image_uri }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Configure AWS
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: target
+          path: target/
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -79,35 +80,11 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Build JAR
-        run: ./mvnw -B clean package -DskipTests
-
-      - name: Docker metadata
-        id: meta
-        run: |
-          BRANCH="${GITHUB_REF_NAME:-unknown}"
-          BRANCH_SAFE=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
-          IMAGE_TAG="${BRANCH_SAFE}-${GITHUB_RUN_NUMBER}"
-          ECR_REGISTRY="${{ steps.ecr.outputs.registry }}"
-          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "image_uri=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          build-args: VERSION=${{ steps.meta.outputs.image_tag }}
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
