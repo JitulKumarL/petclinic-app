@@ -101,8 +101,10 @@ See `cicd-platform/docs/GITHUB_OIDC_SETUP.md` (in the cicd-platform repo) for:
 | Secret | Description |
 |--------|-------------|
 | `AWS_ROLE_ARN` | IAM role ARN for OIDC (e.g. `arn:aws:iam::ACCOUNT:role/github-actions-ecr`) |
-| `SONAR_HOST_URL` | SonarQube URL (e.g. `http://sonarqube.sonarqube:9000` or LoadBalancer URL) |
-| `SONAR_TOKEN` | SonarQube project/global analysis token |
+| `SONAR_HOST_URL` | SonarQube URL – must be reachable from GitHub (e.g. LoadBalancer: `http://<elb-dns>:9000`) |
+| `SONAR_TOKEN` | SonarQube user token with Execute Analysis + Create Projects |
+
+**Note:** `SONAR_HOST_URL` must be publicly reachable if using GitHub-hosted runners. Internal URLs (e.g. `http://sonarqube.sonarqube:9000`) only work with self-hosted runners.
 
 ### 4. GitHub repository variables (optional)
 
@@ -119,11 +121,12 @@ See `cicd-platform/docs/GITHUB_OIDC_SETUP.md` (in the cicd-platform repo) for:
 
 ---
 
-## SonarQube Project
+## SonarQube Project (required before first CI run)
 
-1. Create project in SonarQube UI (or use default)
-2. Generate token: **My Account** → **Security** → **Generate Tokens**
-3. Add token as `SONAR_TOKEN` secret
+1. **Create project manually:** SonarQube UI → Projects → Create project manually → Project key: `petclinic_sonar_key` (must match `sonar-project.properties`), Display name: `Spring Petclinic`.
+2. **Generate token:** My Account → Security → Generate Tokens → name `github-actions` → Generate. Copy token.
+3. **Add token as** `SONAR_TOKEN` **secret** in GitHub.
+4. **Permissions:** Admin → Security → Global Permissions. Ensure `sonar-users` has **Execute Analysis** and **Create Projects**.
 
 ---
 
@@ -152,8 +155,9 @@ ls target/*.jar
 - Ensure OIDC trust policy allows your repo/org
 - Check ECR repo exists and name matches `ECR_REPOSITORY`
 
-### CI: SonarQube fails
+### CI: SonarQube fails ("not authorized to analyze this project or the project doesn't exist")
 
-- Verify `SONAR_HOST_URL` is reachable from GitHub Actions (public URL or self-hosted runner)
-- Ensure `SONAR_TOKEN` is valid
-- Sonar step has `continue-on-error: true` so CI still succeeds
+- **Project key:** Ensure project `petclinic_sonar_key` exists in SonarQube and matches `sonar-project.properties`.
+- **Token:** Regenerate token (My Account → Security) and update `SONAR_TOKEN` secret.
+- **Permissions:** Admin → Security → Global Permissions. `sonar-users` needs **Execute Analysis** and **Create Projects**.
+- **URL:** `SONAR_HOST_URL` must be reachable from GitHub (public LoadBalancer DNS; internal URLs require self-hosted runners).
