@@ -220,7 +220,7 @@
               <configLocation>src/checkstyle/nohttp-checkstyle.xml</configLocation>
               <sourceDirectories>${basedir}</sourceDirectories>
               <includes>**/*</includes>
-              <excludes>**/.git/**/*,**/.idea/**/*,**/target/**/*,**/artifacts/**/*,**/.flattened-pom.xml,**/*.class,**/*.jar</excludes>
+              <excludes>**/.git/**/*,**/.idea/**/*,**/target/**/*,**/artifacts/**/*,**/.flattened-pom.xml,**/*.class,**/*.jar,**/.m2/**/*</excludes>
               <propertyExpansion>config_loc=${basedir}/src/checkstyle/</propertyExpansion>
             </configuration>
           </execution>
