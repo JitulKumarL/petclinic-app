@@ -293,6 +293,10 @@
   <profiles>
     <profile>
       <id>sonar</id>
+      <properties>
+        <sonar.projectKey>petclinic_sonar_key</sonar.projectKey>
+        <sonar.projectName>Spring Petclinic</sonar.projectName>
+      </properties>
       <build>
         <plugins>
           <plugin>

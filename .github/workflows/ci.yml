@@ -66,7 +66,7 @@ jobs:
           path: target/
 
       - name: SonarQube analysis
-        run: mvn -B -P sonar sonar:sonar -DskipTests
+        run: mvn -B -P sonar sonar:sonar -DskipTests -Dsonar.projectKey=petclinic_sonar_key -Dsonar.projectName='Spring Petclinic'
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
