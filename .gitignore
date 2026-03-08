@@ -1,0 +1,15 @@
+# Config - real values
+config/app-config.env
+
+# Build
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
