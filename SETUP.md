@@ -123,10 +123,14 @@ See `cicd-platform/docs/GITHUB_OIDC_SETUP.md` (in the cicd-platform repo) for:
 
 ## SonarQube Project (required before first CI run)
 
-1. **Create project manually:** SonarQube UI → Projects → Create project manually → Project key: `petclinic_sonar_key` (must match `sonar-project.properties`), Display name: `Spring Petclinic`.
+1. **Create project manually:** SonarQube UI → Projects → Create project manually → Project key: `petclinic_sonar_key` (must match `pom.xml` sonar profile), Display name: `Spring Petclinic`.
 2. **Generate token:** My Account → Security → Generate Tokens → name `github-actions` → Generate. Copy token.
 3. **Add token as** `SONAR_TOKEN` **secret** in GitHub.
 4. **Permissions:** Admin → Security → Global Permissions. Ensure `sonar-users` has **Execute Analysis** and **Create Projects**.
+
+**Project key configuration:** The Maven plugin defaults to `groupId:artifactId` and ignores `sonar-project.properties`. The project key is set in `pom.xml` under the `sonar` profile's `<properties>`:
+- `sonar.projectKey=petclinic_sonar_key`
+- `sonar.projectName=Spring Petclinic`
 
 ---
 
@@ -157,7 +161,13 @@ ls target/*.jar
 
 ### CI: SonarQube fails ("not authorized to analyze this project or the project doesn't exist")
 
-- **Project key:** Ensure project `petclinic_sonar_key` exists in SonarQube and matches `sonar-project.properties`.
+- **Project key mismatch:** The sonar-maven-plugin uses `groupId:artifactId` by default, so SonarQube receives `org.springframework.samples:spring-petclinic` instead of `petclinic_sonar_key`. **Fix:** Add in `pom.xml` under the sonar profile's `<properties>`:
+  ```xml
+  <sonar.projectKey>petclinic_sonar_key</sonar.projectKey>
+  <sonar.projectName>Spring Petclinic</sonar.projectName>
+  ```
+  The CI workflow also passes `-Dsonar.projectKey=petclinic_sonar_key` for redundancy.
+- **SonarQube project:** Ensure project key `petclinic_sonar_key` exists in SonarQube UI.
 - **Token:** Regenerate token (My Account → Security) and update `SONAR_TOKEN` secret.
 - **Permissions:** Admin → Security → Global Permissions. `sonar-users` needs **Execute Analysis** and **Create Projects**.
 - **URL:** `SONAR_HOST_URL` must be reachable from GitHub (public LoadBalancer DNS; internal URLs require self-hosted runners).
